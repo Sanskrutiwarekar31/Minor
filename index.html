@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Disaster Management & Prediction System</title>
+
+<style>
+/* ================= VARIABLES ================= */
+:root {
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --primary-light: #3b82f6;
+  --secondary: #f59e0b;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --bg: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --card: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px 2px rgba(0,0,0,0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ================= HEADER ================= */
+header {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%);
+  color: white;
+  padding: 32px 0;
+  box-shadow: var(--shadow-xl);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 4px solid rgba(255,255,255,0.2);
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-icon {
+  font-size: 56px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.header-text h1 {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  margin-bottom: 8px;
+}
+
+.header-text p {
+  font-size: 16px;
+  opacity: 0.95;
+  font-weight: 400;
+}
+
+/* ================= NAVIGATION ================= */
+nav {
+  background: white;
+  box-shadow: var(--shadow-lg);
+  position: sticky;
+  top: 120px;
+  z-index: 99;
+  border-bottom: 2px solid var(--border);
+}
+
+.nav-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.nav-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.nav-container::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+.nav-container::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 4px;
+}
+
+nav button {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 20px 32px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  border-bottom: 4px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+nav button::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 80%;
+  height: 4px;
+  background: var(--primary);
+  transition: transform 0.3s ease;
+}
+
+nav button:hover {
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.05);
+}
+
+nav button:hover::before {
+  transform: translateX(-50%) scaleX(1);
+}
+
+nav button.active {
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+nav button.active::before {
+  transform: translateX(-50%) scaleX(1);
+}
+
+nav button .icon {
+  font-size: 20px;
+}
+
+/* ================= CONTAINER ================= */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  min-height: calc(100vh - 200px);
+}
+
+.page {
+  display: none;
+  animation: fadeIn 0.4s ease;
+}
+
+.page.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+/* ================= PANELS ================= */
+.panel {
+  background: var(--card);
+  padding: 36px;
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  margin-bottom: 32px;
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+}
+
+.panel:hover {
+  box-shadow: var(--shadow-xl);
+}
+
+.panel h2 {
+  font-size: 28px;
+  margin-bottom: 24px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-weight: 700;
+}
+
+.panel h2::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 32px;
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 100%);
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+}
+
+/* ================= FORM ELEMENTS ================= */
+label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+  margin-bottom: 10px;
+}
+
+input[type="text"],
+input[type="date"],
+select {
+  width: 100%;
+  padding: 14px 18px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  background: white;
+  color: var(--text);
+  font-family: inherit;
+}
+
+input[type="text"]:focus,
+input[type="date"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+  transform: translateY(-1px);
+}
+
+.input-group {
+  margin-bottom: 24px;
+}
+
+/* ================= BUTTONS ================= */
+button.primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  border: none;
+  padding: 16px 32px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.4);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: inherit;
+}
+
+button.primary:hover {
+  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px 0 rgba(37, 99, 235, 0.5);
+}
+
+button.primary:active {
+  transform: translateY(0);
+}
+
+button.primary:disabled {
+  background: linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ================= WEATHER GRID ================= */
+.weather-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-top: 32px;
+}
+
+.weather-box {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: var(--shadow-lg);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.weather-box::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  animation: pulse 4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.weather-box:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 15px 30px -5px rgba(0,0,0,0.3);
+}
+
+.weather-box:nth-child(1) {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.weather-box:nth-child(2) {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.weather-box:nth-child(3) {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.weather-box:nth-child(4) {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.weather-box:nth-child(5) {
+  background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+}
+
+.weather-label {
+  font-size: 13px;
+  opacity: 0.95;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  position: relative;
+  z-index: 1;
+}
+
+.weather-value {
+  font-size: 32px;
+  font-weight: 800;
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* ================= PREDICTION RESULT ================= */
+.prediction-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 32px;
+}
+
+.disaster-card {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: var(--shadow-lg);
+  border: 3px solid var(--border);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.disaster-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+}
+
+.disaster-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-xl);
+}
+
+.disaster-card.high-risk {
+  border-color: var(--danger);
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.08) 0%, rgba(220, 38, 38, 0.02) 100%);
+}
+
+.disaster-card.high-risk::before {
+  background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+}
+
+.disaster-card.moderate-risk {
+  border-color: var(--warning);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%);
+}
+
+.disaster-card.moderate-risk::before {
+  background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+}
+
+.disaster-card.low-risk {
+  border-color: var(--success);
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.08) 0%, rgba(22, 163, 74, 0.02) 100%);
+}
+
+.disaster-card.low-risk::before {
+  background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%);
+}
+
+.disaster-type {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.disaster-probability {
+  font-size: 56px;
+  font-weight: 800;
+  margin: 20px 0;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.risk-badge {
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.risk-badge.high {
+  background: var(--danger);
+  color: white;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.risk-badge.moderate {
+  background: var(--warning);
+  color: white;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.risk-badge.low {
+  background: var(--success);
+  color: white;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+.risk-badge.very-low {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+/* ================= NEWS SECTION ================= */
+.controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.tab {
+  background: var(--card);
+  border: 2px solid var(--border);
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tab.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+#news-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 24px;
+  margin-top: 32px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+  border-radius: 16px 16px 0 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--primary);
+}
+
+.card h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  color: var(--text);
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.card p {
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.card a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.3s ease;
+}
+
+.card a:hover {
+  color: var(--primary-dark);
+  gap: 10px;
+}
+
+.empty {
+  color: var(--text-muted);
+  padding: 60px 40px;
+  text-align: center;
+  font-size: 16px;
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  border: 2px dashed var(--border);
+}
+
+.small-muted {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.danger {
+  color: var(--danger);
+  font-weight: 600;
+  padding: 20px;
+  background: rgba(220, 38, 38, 0.1);
+  border-radius: 12px;
+  margin-top: 20px;
+  border-left: 4px solid var(--danger);
+}
+
+.info-box {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-left: 4px solid var(--primary);
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  line-height: 1.8;
+}
+
+.key-factors {
+  margin-top: 24px;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.key-factors ul {
+  margin: 16px 0;
+  padding-left: 28px;
+}
+
+.key-factors li {
+  margin: 10px 0;
+  line-height: 1.7;
+}
+
+.tag {
+  display: inline-block;
+  background: var(--bg-secondary);
+  padding: 6px 14px;
+  border-radius: 20px;
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.feeds-input {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.small {
+  padding: 10px 18px;
+  font-size: 14px;
+}
+
+/* ================= LOADING SPINNER ================= */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255,255,255,.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .header-text h1 {
+    font-size: 24px;
+  }
+  
+  .header-icon {
+    font-size: 48px;
+  }
+  
+  nav {
+    top: 140px;
+  }
+  
+  nav button {
+    padding: 16px 20px;
+    font-size: 14px;
+  }
+  
+  .prediction-grid,
+  .weather-grid,
+  #news-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .panel {
+    padding: 24px;
+  }
+  
+  .disaster-probability {
+    font-size: 48px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ================= HEADER ================= -->
+<header>
+  <div class="header-content">
+    <div class="header-icon">🌍</div>
+    <div class="header-text">
+      <h1>Disaster Management & Prediction System</h1>
+      <p>AI-powered disaster prediction & real-time monitoring for India</p>
+    </div>
+  </div>
+</header>
+
+<!-- ================= NAVIGATION ================= -->
+<nav>
+  <div class="nav-container">
+    <button class="active" onclick="showPage('weather', this)">
+      <span class="icon">🌦</span> Weather Monitor
+    </button>
+    <button onclick="showPage('prediction', this)">
+      <span class="icon">⚠️</span> Disaster Prediction
+    </button>
+    <button onclick="showPage('news', this)">
+      <span class="icon">📰</span> Live News Feed
+    </button>
+    <button onclick="showPage('india-map', this)">
+  <span class="icon">🗺️</span> India Disaster Map
+</button>
+<button onclick="showPage('sos', this)">
+  <span class="icon">🚨</span> Emergency SOS
+</button>
+  </div>
+</nav>
+
+<!-- ================= MAIN CONTENT ================= -->
+<main class="container">
+
+<!-- ================= WEATHER PAGE ================= -->
+<section id="weather" class="page active">
+  <div class="panel">
+    <h2>Live Weather Information</h2>
+    
+    <div class="info-box">
+      <strong>🌡️ Real-Time Weather Data:</strong> Get current weather conditions including temperature, humidity, rainfall, wind speed, and more from any location in India.
+    </div>
+    
+    <div class="input-group">
+      <label>🏙️ City / District</label>
+      <input type="text" id="weatherCity" placeholder="Enter city name (e.g., Mumbai, Delhi, Bangalore)" list="city-suggestions">
+      <datalist id="city-suggestions">
+        <option value="Mumbai">
+        <option value="Delhi">
+        <option value="Bangalore">
+        <option value="Chennai">
+        <option value="Kolkata">
+        <option value="Hyderabad">
+        <option value="Pune">
+        <option value="Ahmedabad">
+        <option value="Jaipur">
+        <option value="Lucknow">
+      </datalist>
+    </div>
+
+    <div class="small-muted">
+      📅 Current Date: <strong><span id="todayDate"></span></strong>
+    </div>
+
+    <button class="primary" onclick="getWeather()" id="weatherBtn">
+      <span>🔍</span> Get Weather Data
+    </button>
+
+    <div id="weatherResult" class="weather-grid"></div>
+  </div>
+</section>
+
+<!-- ================= PREDICTION PAGE ================= -->
+<section id="prediction" class="page">
+  <div class="panel">
+    <h2>AI Disaster Prediction</h2>
+    
+    <div class="info-box">
+      <strong>🤖 Machine Learning Analysis:</strong> Our advanced ML models analyze 30+ weather parameters including temperature trends, rainfall patterns, humidity levels, and historical data to predict disaster probabilities with high accuracy.
+    </div>
+    
+    <div class="input-group">
+      <label>🏙️ City / District</label>
+      <input type="text" id="predictCity" placeholder="Enter city for disaster risk analysis" list="city-suggestions">
+    </div>
+
+    <div class="small-muted">
+      ⚡ Real-time analysis of: <strong>Flood Risk • Drought Risk • Heatwave Risk</strong>
+    </div>
+
+    <button class="primary" onclick="predictDisasters()" id="predictBtn">
+      <span>📊</span> Analyze Disaster Risk
+    </button>
+
+    <div id="predictResult"></div>
+  </div>
+</section>
+
+<!-- ================= NEWS PAGE ================= -->
+<section id="news" class="page">
+  <div class="panel">
+    <h2>Disaster News Aggregator</h2>
+    
+    <div class="info-box">
+      <strong>📡 Live News Feed:</strong> Real-time disaster-related news from 32 major Indian news sources. Filter by keywords to find specific incidents.
+    </div>
+    
+    <div class="panel" style="background: var(--bg-secondary); padding: 20px;">
+      <label>Add custom RSS feed (any news blog / local site). Saved locally in your browser.</label>
+      <div class="feeds-input">
+        <input id="feed-url" type="text" placeholder="Enter RSS feed URL (e.g. https://example.com/feed.xml)" />
+        <button onclick="addFeed()" class="primary small">Add Feed</button>
+        <button onclick="resetFeeds()" class="primary small" style="background: var(--text-muted);">Reset Feeds</button>
+      </div>
+    </div>
+    
+    <div class="input-group">
+      <label>🔍 Filter Keywords (comma-separated)</label>
+      <input id="keywords" type="text" value="flood,cyclone,earthquake,landslide,rain,heavy rain,waterlogging,cloudburst,storm,fire,heatwave,accident,rescue,disaster" />
+    </div>
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom: 20px;">
+      <div style="flex: 1; min-width: 200px;">
+        <label>Sort by</label>
+        <select id="sortby">
+          <option value="date">Newest first</option>
+          <option value="source">By source</option>
+        </select>
+      </div>
+      
+      <div style="margin-top: 24px;">
+        <button class="primary" onclick="loadAllNews()" id="newsBtn">
+          🔄 Load Latest News
+        </button>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span class="tag">📡 Aggregated feeds: <strong><span id="feed-count">0</span></strong></span>
+        </div>
+        <div class="small-muted">Results: <strong><span id="result-count">0</span></strong></div>
+      </div>
+    </div>
+
+    <div id="news-grid">
+      <div class="empty">
+        👆 Click <strong>Load Latest News</strong> to fetch disaster-related news from multiple sources
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= JAVASCRIPT ================= -->
+<script>
+/* ========== CONFIGURATION ========== */
+const API_BASE = window.location.origin;
+const WEATHER_KEY = "14c27bb50b0044d6b37175716263101";
+
+/* ========== PAGE NAVIGATION ========== */
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
+/* ========== AUTO DATE ========== */
+document.getElementById("todayDate").innerText = new Date().toDateString();
+
+/* ========== WEATHER API ========== */
+async function getWeather() {
+  const city = document.getElementById("weatherCity").value.trim();
+  if(!city) {
+    alert("⚠️ Please enter a city name");
+    return;
+  }
+
+  const weatherResult = document.getElementById("weatherResult");
+  const btn = document.getElementById("weatherBtn");
+  
+  weatherResult.innerHTML = '<div class="empty">Fetching weather data...</div>';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Loading...';
+
+  try {
+    const response = await fetch(
+      `https://api.weatherapi.com/v1/current.json?key=${WEATHER_KEY}&q=${city}`
+    );
+    const data = await response.json();
+
+    if(data.error) {
+      weatherResult.innerHTML = "<div class='danger'>❌ Weather data not found for this location. Please check the city name and try again.</div>";
+      return;
+    }
+
+    weatherResult.innerHTML = `
+      <div class="weather-box fade-in">
+        <div class="weather-label">Temperature</div>
+        <div class="weather-value">${data.current.temp_c}°C</div>
+      </div>
+      <div class="weather-box fade-in">
+        <div class="weather-label">Humidity</div>
+        <div class="weather-value">${data.current.humidity}%</div>
+      </div>
+      <div class="weather-box fade-in">
+        <div class="weather-label">Rainfall</div>
+        <div class="weather-value">${data.current.precip_mm} mm</div>
+      </div>
+      <div class="weather-box fade-in">
+        <div class="weather-label">Wind Speed</div>
+        <div class="weather-value">${data.current.wind_kph} km/h</div>
+      </div>
+      <div class="weather-box fade-in">
+        <div class="weather-label">Condition</div>
+        <div class="weather-value" style="font-size: 20px;">${data.current.condition.text}</div>
+      </div>
+    `;
+  } catch(error) {
+    weatherResult.innerHTML = "<div class='danger'>❌ Error fetching weather data. Please check your internet connection and try again.</div>";
+    console.error(error);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>🔍</span> Get Weather Data';
+  }
+}
+
+/* ========== DISASTER PREDICTION ========== */
+async function predictDisasters() {
+  const city = document.getElementById("predictCity").value.trim();
+  if(!city) {
+    alert("⚠️ Please enter a city name");
+    return;
+  }
+
+  const predictResult = document.getElementById("predictResult");
+  const btn = document.getElementById("predictBtn");
+  
+  predictResult.innerHTML = '<div class="empty">🤖 Analyzing disaster risk with AI models...</div>';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+  try {
+    const response = await fetch(`${API_BASE}/api/predict`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({city})
+    });
+
+    const result = await response.json();
+
+    if(!result.success) {
+      predictResult.innerHTML = `<div class='danger'>❌ ${result.message}</div>`;
+      return;
+    }
+
+    const data = result.data;
+    
+    let html = '<div class="prediction-grid">';
+    
+    const flood = data.predictions.flood;
+    const floodRisk = getRiskClass(flood.probability_percent);
+    html += createDisasterCard('🌊 Flood', flood.probability_percent, flood.risk_level, floodRisk);
+    
+    const drought = data.predictions.drought;
+    const droughtRisk = getRiskClass(drought.probability_percent);
+    html += createDisasterCard('☀️ Drought', drought.probability_percent, drought.risk_level, droughtRisk);
+    
+    const heatwave = data.predictions.heatwave;
+    const heatwaveRisk = getRiskClass(heatwave.probability_percent);
+    html += createDisasterCard('🔥 Heatwave', heatwave.probability_percent, heatwave.risk_level, heatwaveRisk);
+    
+    html += '</div>';
+    
+    html += `
+      <div class="info-box" style="margin-top: 32px;">
+        <strong>📍 Location:</strong> ${data.location}<br>
+        <strong>📅 Analysis Time:</strong> ${data.date}<br>
+        <strong>🤖 Method:</strong> ${data.method || 'Machine Learning'}<br>
+        <strong>🌡️ Current Temperature:</strong> ${data.current_conditions.temp_c}°C<br>
+        <strong>💧 Current Humidity:</strong> ${data.current_conditions.humidity}%<br>
+        <strong>🌧️ Current Rainfall:</strong> ${data.current_conditions.rain_mm}mm
+      </div>
+    `;
+    
+    if(data.key_factors && data.key_factors.length > 0) {
+      html += '<div class="key-factors"><strong>🔍 Key Risk Factors:</strong><ul>';
+      data.key_factors.forEach(factor => {
+        html += `<li>${factor}</li>`;
+      });
+      html += '</ul></div>';
+    }
+    
+    predictResult.innerHTML = html;
+    
+  } catch(error) {
+    predictResult.innerHTML = "<div class='danger'>❌ Error connecting to prediction service. Please make sure the Flask API is running on http://localhost:5000</div>";
+    console.error(error);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>📊</span> Analyze Disaster Risk';
+  }
+}
+
+function getRiskClass(probability) {
+  if(probability >= 60) return 'high-risk';
+  if(probability >= 40) return 'moderate-risk';
+  return 'low-risk';
+}
+
+function getRiskBadgeClass(riskLevel) {
+  const level = riskLevel.toLowerCase();
+  if(level.includes('high')) return 'high';
+  if(level.includes('moderate')) return 'moderate';
+  if(level.includes('low')) return 'low';
+  return 'very-low';
+}
+
+function createDisasterCard(title, probability, riskLevel, riskClass) {
+  const badgeClass = getRiskBadgeClass(riskLevel);
+  const icon = probability >= 60 ? '🔴' : probability >= 40 ? '🟡' : '🟢';
+  
+  return `
+    <div class="disaster-card ${riskClass} fade-in">
+      <div class="disaster-type">${icon} ${title}</div>
+      <div class="disaster-probability" style="color: ${
+        probability >= 60 ? 'var(--danger)' : 
+        probability >= 40 ? 'var(--warning)' : 
+        'var(--success)'
+      }">
+        ${probability.toFixed(1)}%
+      </div>
+      <span class="risk-badge ${badgeClass}">${riskLevel}</span>
+      <div class="small-muted">Probability of occurrence in next 7 days</div>
+    </div>
+  `;
+}
+
+/* ========== NEWS FEED - USING WORKING LOGIC FROM PROVIDED CODE ========== */
+
+const DEFAULT_FEEDS = [
+  "https://feeds.feedburner.com/ndtvnews-top-stories",
+  "https://www.thehindu.com/news/national/?service=rss",
+  "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
+  "https://indianexpress.com/feed/",
+  "https://www.hindustantimes.com/rss/topnews/rssfeed.xml",
+  "https://www.firstpost.com/rss.xml",
+  "https://theprint.in/feed/",
+  "https://thewire.in/rss",
+  "https://scroll.in/rss",
+  "https://www.news18.com/rss/",
+  "https://www.indiatoday.in/rss/home",
+  "https://www.zeenews.india.com/rss",
+  "https://www.thequint.com/rss",
+  "https://www.deccanherald.com/feed",
+  "https://feeds.bbci.co.uk/news/world/asia/india/rss.xml",
+  "https://in.reuters.com/rssFeed/topNews",
+  "https://economictimes.indiatimes.com/rssfeedstopstories.cms",
+  "https://www.livemint.com/rss/news",
+  "https://www.business-standard.com/rss/home_page_top_stories.rss",
+  "https://www.thehindu.com/news/cities/mumbai/?service=rss",
+  "https://www.thehindu.com/news/national/kerala/?service=rss",
+  "https://www.thehindu.com/news/national/karnataka/?service=rss",
+  "https://www.thehindu.com/news/national/andhra-pradesh/?service=rss",
+  "https://www.thehindu.com/news/national/tamil-nadu/?service=rss",
+  "https://www.dnaindia.com/feeds/rss/all.xml",
+  "https://www.thehansindia.com/rss",
+  "https://www.deccanchronicle.com/feed",
+  "https://www.siasat.com/rss",
+  "https://www.outlookindia.com/rss",
+  "https://www.mid-day.com/rss.xml",
+  "https://www.thenewsminute.com/feed",
+  "https://www.greaterkashmir.com/rssfeed"
+];
+
+const STORAGE_FEEDS_KEY = "disaster_aggregator_feeds_v1";
+const PROXY = "https://api.allorigins.win/raw?url=";
+
+function getStoredFeeds(){
+  try {
+    const s = localStorage.getItem(STORAGE_FEEDS_KEY);
+    if(s) return JSON.parse(s);
+  } catch(e){}
+  return DEFAULT_FEEDS.slice();
+}
+
+function saveStoredFeeds(arr){
+  localStorage.setItem(STORAGE_FEEDS_KEY, JSON.stringify(arr));
+}
+
+function addFeed(){
+  const url = document.getElementById("feed-url").value.trim();
+  if(!url){
+    alert("Please enter a feed URL");
+    return;
+  }
+  
+  try {
+    new URL(url);
+  } catch(e){
+    alert("Invalid URL format");
+    return;
+  }
+  
+  const feeds = getStoredFeeds();
+  if(feeds.includes(url)){
+    alert("This feed already exists");
+    return;
+  }
+  
+  feeds.push(url);
+  saveStoredFeeds(feeds);
+  renderFeedCount();
+  alert("Feed added successfully!");
+  document.getElementById("feed-url").value = "";
+}
+
+function resetFeeds(){
+  if(confirm("Reset to default feeds? This will remove all custom feeds.")){
+    saveStoredFeeds(DEFAULT_FEEDS.slice());
+    renderFeedCount();
+    alert("Feeds reset to default");
+  }
+}
+
+function renderFeedCount(){
+  const feeds = getStoredFeeds();
+  document.getElementById("feed-count").textContent = feeds.length;
+}
+
+async function fetchFeed(feedUrl){
+  try {
+    const res = await fetch(PROXY + encodeURIComponent(feedUrl));
+    const text = await res.text();
+    const xml = new DOMParser().parseFromString(text,"text/xml");
+
+    const items = Array.from(xml.getElementsByTagName("item")).map(it=>{
+      return {
+        title: it.getElementsByTagName("title")[0]?.textContent || "",
+        link: it.getElementsByTagName("link")[0]?.textContent || "",
+        pubDate: it.getElementsByTagName("pubDate")[0]?.textContent || "",
+        description: it.getElementsByTagName("description")[0]?.textContent || ""
+      };
+    });
+
+    return {
+      feedTitle: xml.getElementsByTagName("title")[0]?.textContent || feedUrl,
+      items
+    };
+  } catch(e){
+    console.warn("Feed failed:", feedUrl);
+    return { feedTitle: feedUrl, items: [] };
+  }
+}
+
+function normalizeText(s){ 
+  return (s||"").toString().toLowerCase(); 
+}
+
+function keywordsFromInput(){
+  const raw = document.getElementById("keywords").value || "";
+  return raw.split(",").map(k=>k.trim().toLowerCase()).filter(Boolean);
+}
+
+function matchesKeywords(text, keywords){
+  if(!text) return false;
+  return keywords.some(k=> text.includes(k));
+}
+
+function dedupe(items){
+  const map = new Map();
+  items.forEach(it=>{
+    const key = (it.title||"") + "||" + (it.link||"");
+    if(!map.has(key)) map.set(key, it);
+  });
+  return Array.from(map.values());
+}
+
+async function loadAllNews(){
+  const feeds = getStoredFeeds();
+  const keywords = keywordsFromInput();
+  const newsGrid = document.getElementById("news-grid");
+  const btn = document.getElementById("newsBtn");
+
+  newsGrid.innerHTML = "<div class='empty'>🔄 Fetching from " + feeds.length + " sources...</div>";
+  document.getElementById("result-count").textContent = "...";
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Loading...';
+
+  let results = [];
+
+  const BATCH = 6;
+  for(let i=0; i<feeds.length; i+=BATCH){
+    const chunk = feeds.slice(i, i+BATCH);
+    const responses = await Promise.all(chunk.map(f => fetchFeed(f)));
+
+    responses.forEach(feedObj=>{
+      feedObj.items.forEach(it=>{
+        const text = normalizeText((it.title||"") + " " + (it.description||""));
+        if(keywords.length === 0 || matchesKeywords(text, keywords)){
+          results.push({
+            title: it.title || "No title",
+            link: it.link,
+            pubDate: it.pubDate || "",
+            source: feedObj.feedTitle,
+            description: it.description || ""
+          });
+        }
+      });
+    });
+
+    await new Promise(r=>setTimeout(r,200));
+  }
+
+  results = dedupe(results);
+
+  const sortby = document.getElementById("sortby").value;
+  if(sortby === "date"){
+    results.sort((a,b)=> new Date(b.pubDate||0) - new Date(a.pubDate||0));
+  } else {
+    results.sort((a,b)=> (a.source||"").localeCompare(b.source||""));
+  }
+
+  renderNews(results);
+  btn.disabled = false;
+  btn.innerHTML = '🔄 Load Latest News';
+}
+
+function renderNews(items){
+  const newsGrid = document.getElementById("news-grid");
+  newsGrid.innerHTML = "";
+  document.getElementById("result-count").textContent = items.length;
+
+  if(items.length===0){
+    newsGrid.innerHTML = "<div class='empty'>📭 No disaster-related news found. Try adjusting your keywords or check back later.</div>";
+    return;
+  }
+
+  items.slice(0, 50).forEach(it=>{
+    const el = document.createElement("div");
+    el.className = "card";
+    
+    const desc = (it.description || "").replace(/<[^>]*>/g, '').substring(0, 150);
+
+    el.innerHTML = `
+      <h3>${it.title}</h3>
+      <div class="meta">${it.source} • ${new Date(it.pubDate || 0).toLocaleDateString()}</div>
+      <p>${desc}${desc.length >= 150 ? '...' : ''}</p>
+      <a href="${it.link}" target="_blank" rel="noopener noreferrer">Read full article →</a>
+    `;
+    newsGrid.appendChild(el);
+  });
+}
+
+/* ========== KEYBOARD SHORTCUTS ========== */
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && e.target.tagName === 'INPUT') {
+    if(document.getElementById('weather').classList.contains('active')) {
+      getWeather();
+    } else if(document.getElementById('prediction').classList.contains('active')) {
+      predictDisasters();
+    }
+  }
+});
+
+/* ========== INIT ========== */
+(function init(){
+  renderFeedCount();
+  if(!localStorage.getItem(STORAGE_FEEDS_KEY))
+    saveStoredFeeds(DEFAULT_FEEDS.slice());
+})();
+</script>
+
+</body>
+</html>
