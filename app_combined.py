@@ -1,46 +1,50 @@
-
 # ============================================================
-# COMBINED FLASK APP - DISASTER MANAGEMENT + SOS EMERGENCY
+# COMBINED FLASK APP - ML ONLY (NO RULE BASED FALLBACK)
 # ============================================================
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import os
 import sys
+import os
 import requests
 from datetime import datetime
 
-# Import prediction logic (your file is named flood_predictor.py)
+# Import ML prediction module
 try:
-    from flood_predictor import predict_disasters, load_models, train_all_models
-    print("✅ Imported prediction module from flood_predictor.py")
+    from flood_predictor import predict_disasters, load_models
+    print("✅ Prediction module imported")
 except ImportError as e:
-    print(f"❌ Import error: {e}")
+    print("❌ Could not import flood_predictor:", e)
     sys.exit(1)
 
 app = Flask(__name__, static_folder='.')
 CORS(app)
 
-# Configuration
-WEATHER_API_KEY = "14c27bb50b0044d6b37175716263101"
-TELEGRAM_BOT_TOKEN = "8288138279:AAFg3Ql52TFRK-paXr_BCxxBEtu--fDaBYY"
-TELEGRAM_CHAT_ID = 8581771628
+# ================= TELEGRAM CONFIG =================
 
-# Load models (will fall back gracefully if training data is insufficient)
-flood_model, drought_model, heatwave_model = None, None, None
+TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN"
+TELEGRAM_CHAT_ID = "YOUR_CHAT_ID"
 
-def initialize_models():
-    global flood_model, drought_model, heatwave_model
-    print("🚀 Loading ML models...")
-    try:
-        flood_model, drought_model, heatwave_model = load_models()
-        print("✅ Models loaded successfully")
-    except Exception as e:
-        print(f"⚠️ Model loading failed: {e} → using rule-based fallback for predictions")
+# ================= LOAD ML MODELS =================
 
-initialize_models()
+print("🚀 Checking ML models...")
 
-# City coordinates for map + predictions
+try:
+    flood_model, drought_model, heatwave_model = load_models()
+
+    # If models are missing → stop server
+    if flood_model is None or drought_model is None or heatwave_model is None:
+        print("❌ ML models not found. Train models first.")
+        sys.exit(1)
+
+    print("✅ ML models loaded successfully")
+
+except Exception as e:
+    print("❌ Failed to load ML models:", e)
+    sys.exit(1)
+
+# ================= CITY COORDINATES =================
+
 CITY_COORDINATES = {
     "mumbai": {"lat": 19.0760, "lon": 72.8777},
     "delhi": {"lat": 28.7041, "lon": 77.1025},
@@ -49,156 +53,153 @@ CITY_COORDINATES = {
     "kolkata": {"lat": 22.5726, "lon": 88.3639},
     "hyderabad": {"lat": 17.3850, "lon": 78.4867},
     "pune": {"lat": 18.5204, "lon": 73.8567},
-    "ahmedabad": {"lat": 23.0225, "lon": 72.5714},
-    "jaipur": {"lat": 26.9124, "lon": 75.7873},
-    "lucknow": {"lat": 26.8467, "lon": 80.9462},
-    "surat": {"lat": 21.1702, "lon": 72.8311},
-    "kanpur": {"lat": 26.4499, "lon": 80.3319},
-    "nagpur": {"lat": 21.1458, "lon": 79.0882},
-    "indore": {"lat": 22.7196, "lon": 75.8577},
-    "thane": {"lat": 19.2183, "lon": 72.9781},
-    "bhopal": {"lat": 23.2599, "lon": 77.4126},
-    "visakhapatnam": {"lat": 17.6868, "lon": 83.2185},
-    "patna": {"lat": 25.5941, "lon": 85.1376},
-    "vadodara": {"lat": 22.3072, "lon": 73.1812},
 }
 
-def get_coordinates(city_name):
-    city_key = city_name.lower().strip()
-    if city_key in CITY_COORDINATES:
-        return CITY_COORDINATES[city_key]["lat"], CITY_COORDINATES[city_key]["lon"]
+def get_coordinates(city):
+    city = city.lower().strip()
+    if city in CITY_COORDINATES:
+        return CITY_COORDINATES[city]["lat"], CITY_COORDINATES[city]["lon"]
     return None, None
 
-# ==================== ROUTES ====================
+
+# ================= HOME PAGE =================
 
 @app.route('/')
 def index():
-    # Changed to match your actual filename
     return send_from_directory('.', 'index_combined.html')
+
+
+# ================= ML PREDICTION =================
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
+
     try:
         data = request.get_json()
-        city = data.get('city', '').strip()
+        city = data.get("city")
+
         if not city:
-            return jsonify({"success": False, "message": "City required"}), 400
-        
+            return jsonify({
+                "success": False,
+                "message": "City required"
+            }), 400
+
         lat, lon = get_coordinates(city)
+
         if lat is None:
-            lat = data.get('lat')
-            lon = data.get('lon')
-            if lat is None:
-                return jsonify({"success": False, "message": f"Unknown city: {city}"}), 404
-        
-        # Using rule-based mode for more reliable output during development
-        result = predict_disasters(city, float(lat), float(lon), use_ml=False)
-        if result is None:
-            return jsonify({"success": False, "message": "Prediction failed"}), 500
-        
-        return jsonify({"success": True, "data": result})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+            return jsonify({
+                "success": False,
+                "message": "City not supported"
+            }), 404
 
-@app.route('/api/predict-all-cities', methods=['POST'])
-def predict_all_cities():
-    try:
-        results = []
-        for city_name, coords in CITY_COORDINATES.items():
-            try:
-                # Force rule-based for consistent map results
-                prediction = predict_disasters(
-                    city_name.title(),
-                    coords["lat"],
-                    coords["lon"],
-                    use_ml=False
-                )
-                
-                if prediction is None:
-                    prediction = {
-                        "predictions": {
-                            "flood": {"probability_percent": 8, "risk_level": "Very Low"},
-                            "drought": {"probability_percent": 12, "risk_level": "Low"},
-                            "heatwave": {"probability_percent": 15, "risk_level": "Low"}
-                        }
-                    }
+        # ML prediction only
+        result = predict_disasters(city, lat, lon, use_ml=True)
 
-                probs = {k: v["probability_percent"] for k, v in prediction["predictions"].items()}
-                max_risk = max(probs.values())
-                main_type = max(probs, key=probs.get).title()
+        if result is None or result["method"] != "Machine Learning":
+            return jsonify({
+                "success": False,
+                "message": "ML prediction unavailable"
+            }), 500
 
-                results.append({
-                    "city": city_name.title(),
-                    "lat": coords["lat"],
-                    "lon": coords["lon"],
-                    "has_alert": max_risk >= 30,
-                    "max_risk": max_risk,
-                    "disaster_type": main_type,
-                    "predictions": prediction["predictions"]
-                })
-                
-            except Exception as e:
-                print(f"City {city_name} failed: {e}")
-                results.append({
-                    "city": city_name.title(),
-                    "lat": coords["lat"],
-                    "lon": coords["lon"],
-                    "has_alert": False,
-                    "max_risk": 5.0,
-                    "disaster_type": "Unknown",
-                    "predictions": {}
-                })
-                continue
-        
         return jsonify({
             "success": True,
-            "cities": results,
-            "total_analyzed": len(results)
+            "data": result
         })
+
     except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
+# ================= ALL CITY PREDICTIONS =================
+
+@app.route('/api/predict-all-cities', methods=['POST'])
+def predict_all():
+
+    results = []
+
+    for city, coords in CITY_COORDINATES.items():
+
+        prediction = predict_disasters(
+            city.title(),
+            coords["lat"],
+            coords["lon"],
+            use_ml=True
+        )
+
+        # Skip if ML failed
+        if prediction is None or prediction["method"] != "Machine Learning":
+            continue
+
+        probs = {
+            k: v["probability_percent"]
+            for k, v in prediction["predictions"].items()
+        }
+
+        max_risk = max(probs.values())
+        main_type = max(probs, key=probs.get)
+
+        results.append({
+            "city": city.title(),
+            "lat": coords["lat"],
+            "lon": coords["lon"],
+            "max_risk": max_risk,
+            "disaster_type": main_type,
+            "predictions": prediction["predictions"]
+        })
+
+    if len(results) == 0:
+        return jsonify({
+            "success": False,
+            "message": "ML prediction failed for all cities"
+        }), 500
+
+    return jsonify({
+        "success": True,
+        "cities": results
+    })
+
+
+# ================= SOS =================
 
 @app.route('/sos', methods=['POST'])
 def sos():
+
     data = request.json
+
     try:
         lat = float(data.get("latitude"))
         lon = float(data.get("longitude"))
-        name = data.get("name", "Unknown User")
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    except:
-        return jsonify({"error": "Invalid data"}), 400
-    
-    message = f"""🚨 EMERGENCY SOS ALERT 🚨
+        name = data.get("name", "Unknown")
 
-👤 Name: {name}
-📍 Location: {lat}, {lon}
-🕐 Time: {timestamp}
+        message = f"""
+🚨 SOS ALERT 🚨
 
-⚠️ Immediate assistance needed!"""
-    
-    try:
+Name: {name}
+Location: {lat}, {lon}
+Time: {datetime.now()}
+"""
+
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
             json={"chat_id": TELEGRAM_CHAT_ID, "text": message}
         )
-        requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendLocation",
-            json={"chat_id": TELEGRAM_CHAT_ID, "latitude": lat, "longitude": lon}
-        )
-        return jsonify({"status": "sent", "message": "SOS alert sent successfully"})
+
+        return jsonify({"status": "sent"})
+
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)})
 
-@app.route('/api/cities', methods=['GET'])
-def get_cities():
-    cities = [
-        {"name": c.title(), "key": c, "lat": coords["lat"], "lon": coords["lon"]}
-        for c, coords in sorted(CITY_COORDINATES.items())
-    ]
-    return jsonify({"success": True, "cities": cities, "count": len(cities)})
 
-if __name__ == '__main__':
-    print("🌐 Server starting at: http://localhost:5000")
-    print("Serving HTML file: index_combined.html")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+# ================= START SERVER =================
+
+if __name__ == "__main__":
+
+    print("\n==============================")
+    print("🌐 Server starting")
+    print("⚙ Mode: ML ONLY")
+    print("==============================\n")
+
+    app.run(host="0.0.0.0", port=5000, debug=True)
