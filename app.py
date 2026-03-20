@@ -369,3 +369,61 @@ if __name__ == '__main__':
         port=5000,
         debug=True
     )
+
+
+
+
+#----------------------------------------------------------------
+#----------------------------------------------------------------
+
+@app.route('/api/predict-all-cities', methods=['GET'])
+def predict_all_cities():
+    cities = [
+        {"name": "Mumbai", "lat": 19.0760, "lon": 72.8777},
+        {"name": "Pune", "lat": 18.5204, "lon": 73.8567},
+        {"name": "Delhi", "lat": 28.7041, "lon": 77.1025},
+        {"name": "Kolkata", "lat": 22.5726, "lon": 88.3639},
+        {"name": "Chennai", "lat": 13.0827, "lon": 80.2707}
+    ]
+
+    results = []
+
+    for city in cities:
+        try:
+            weather = get_weather(city["name"])
+
+            rainfall = weather.get("rainfall", 0)
+            temperature = weather.get("temperature", 30)
+            humidity = weather.get("humidity", 60)
+
+            # Dummy ML logic (you can replace with your model)
+            if rainfall > 150:
+                disaster = "Flood"
+                risk = "High"
+                color = "red"
+            elif temperature > 40:
+                disaster = "Heatwave"
+                risk = "High"
+                color = "red"
+            elif rainfall < 10:
+                disaster = "Drought"
+                risk = "Medium"
+                color = "orange"
+            else:
+                disaster = "Normal"
+                risk = "Low"
+                color = "green"
+
+            results.append({
+                "city": city["name"],
+                "lat": city["lat"],
+                "lon": city["lon"],
+                "disaster": disaster,
+                "risk": risk,
+                "color": color
+            })
+
+        except Exception as e:
+            print(f"Error for {city['name']}: {e}")
+
+    return jsonify(results)
