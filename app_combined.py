@@ -1,15 +1,39 @@
 # ============================================================
-# COMBINED FLASK APP - ML ONLY (NO RULE BASED FALLBACK)
+# DRISHTI — Disaster Risk Intelligence & Situational Hub
+# Flask Backend — fully aligned with frontend UI (light theme)
+#
+# API contracts matched to frontend field accesses:
+#
+#   POST /api/predict
+#     → { success, data: { predictions{k: {probability_percent, risk_level}},
+#                          location, date, method,
+#                          current_conditions: {temp_c, humidity, rain_mm},
+#                          key_factors[] } }
+#
+#   POST /api/predict-all-cities
+#     → { success, cities: [{city, lat, lon, max_risk, risk_level,
+#                             disaster_type, predictions}] }
+#
+#   POST /api/live-alert
+#     → { success, city, lat, lon, temperature, humidity,
+#         rain_mm, level, message,
+#         ml_predictions{k: {probability_percent, risk_level}} }
+#
+#   POST /sos
+#     → { status: "sent" | "error", message? }
 # ============================================================
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import sys
-import os
-import requests
+import sys, os, requests
 from datetime import datetime
 
-# Import ML prediction module
+# ── API keys from environment (never hardcode) ───────────────
+OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
+TELEGRAM_BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID    = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+# ── ML prediction module ─────────────────────────────────────
 try:
     from flood_predictor import predict_disasters, load_models
     print("✅ Prediction module imported")
@@ -20,186 +44,395 @@ except ImportError as e:
 app = Flask(__name__, static_folder='.')
 CORS(app)
 
-# ================= TELEGRAM CONFIG =================
-
-TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN"
-TELEGRAM_CHAT_ID = "YOUR_CHAT_ID"
-
-# ================= LOAD ML MODELS =================
-
-print("🚀 Checking ML models...")
-
+# ── Load ML models at startup ────────────────────────────────
+print("🚀 Loading ML models…")
 try:
     flood_model, drought_model, heatwave_model = load_models()
-
-    # If models are missing → stop server
-    if flood_model is None or drought_model is None or heatwave_model is None:
-        print("❌ ML models not found. Train models first.")
+    if None in (flood_model, drought_model, heatwave_model):
+        print("❌ One or more ML models missing. Run training first.")
         sys.exit(1)
-
-    print("✅ ML models loaded successfully")
-
+    print("✅ All ML models loaded")
 except Exception as e:
     print("❌ Failed to load ML models:", e)
     sys.exit(1)
 
-# ================= CITY COORDINATES =================
-
+# ── 20 major Indian cities ───────────────────────────────────
+# Must match the <datalist id="city-list"> options in the frontend
 CITY_COORDINATES = {
-    "mumbai": {"lat": 19.0760, "lon": 72.8777},
-    "delhi": {"lat": 28.7041, "lon": 77.1025},
-    "bangalore": {"lat": 12.9716, "lon": 77.5946},
-    "chennai": {"lat": 13.0827, "lon": 80.2707},
-    "kolkata": {"lat": 22.5726, "lon": 88.3639},
-    "hyderabad": {"lat": 17.3850, "lon": 78.4867},
-    "pune": {"lat": 18.5204, "lon": 73.8567},
+    "mumbai":        {"lat": 19.0760, "lon": 72.8777},
+    "delhi":         {"lat": 28.7041, "lon": 77.1025},
+    "bangalore":     {"lat": 12.9716, "lon": 77.5946},
+    "chennai":       {"lat": 13.0827, "lon": 80.2707},
+    "kolkata":       {"lat": 22.5726, "lon": 88.3639},
+    "hyderabad":     {"lat": 17.3850, "lon": 78.4867},
+    "pune":          {"lat": 18.5204, "lon": 73.8567},
+    "nashik":        {"lat": 19.9975, "lon": 73.7898},
+    "ahmedabad":     {"lat": 23.0225, "lon": 72.5714},
+    "jaipur":        {"lat": 26.9124, "lon": 75.7873},
+    "lucknow":       {"lat": 26.8467, "lon": 80.9462},
+    "nagpur":        {"lat": 21.1458, "lon": 79.0882},
+    "bhopal":        {"lat": 23.2599, "lon": 77.4126},
+    "patna":         {"lat": 25.5941, "lon": 85.1376},
+    "bhubaneswar":   {"lat": 20.2961, "lon": 85.8245},
+    "guwahati":      {"lat": 26.1445, "lon": 91.7362},
+    "surat":         {"lat": 21.1702, "lon": 72.8311},
+    "visakhapatnam": {"lat": 17.6868, "lon": 83.2185},
+    "kochi":         {"lat": 9.9312,  "lon": 76.2673},
+    "varanasi":      {"lat": 25.3176, "lon": 82.9739},
 }
 
-def get_coordinates(city):
-    city = city.lower().strip()
-    if city in CITY_COORDINATES:
-        return CITY_COORDINATES[city]["lat"], CITY_COORDINATES[city]["lon"]
-    return None, None
+# ── Helpers ──────────────────────────────────────────────────
+
+def get_coordinates(city: str):
+    """Return (lat, lon) for a city name, case-insensitive. Returns (None, None) if unknown."""
+    return (
+        (CITY_COORDINATES[city]["lat"], CITY_COORDINATES[city]["lon"])
+        if city in CITY_COORDINATES else (None, None)
+    )
 
 
-# ================= HOME PAGE =================
+def risk_label(probability_percent: float) -> str:
+    """
+    Convert a probability % to the risk string the UI uses.
+    UI badge classes: 'high' (≥60), 'med' (≥40), 'low' (<40)
+    The bc() helper in the frontend matches on .lower():
+        'high' → red badge
+        'med' / 'mod' / 'medium' / 'moderate' → amber badge
+        'low' → green badge
+    """
+    if probability_percent >= 60:
+        return "HIGH"
+    elif probability_percent >= 40:
+        return "MEDIUM"
+    else:
+        return "LOW"
 
+
+def attach_risk_levels(predictions: dict) -> dict:
+    """Add risk_level field to every disaster prediction dict in-place."""
+    for pred in predictions.values():
+        pred["risk_level"] = risk_label(pred.get("probability_percent", 0))
+    return predictions
+
+
+# ── Serve the frontend ───────────────────────────────────────
 @app.route('/')
 def index():
     return send_from_directory('.', 'index_combined.html')
 
 
-# ================= ML PREDICTION =================
-
+# ════════════════════════════════════════════════════════════
+#  POST /api/predict  — single city ML prediction
+#
+#  Frontend reads:
+#    result.success
+#    result.message                          (on failure)
+#    result.data.predictions[k].probability_percent
+#    result.data.predictions[k].risk_level
+#    result.data.location
+#    result.data.date
+#    result.data.method
+#    result.data.current_conditions.temp_c
+#    result.data.current_conditions.humidity
+#    result.data.current_conditions.rain_mm
+#    result.data.key_factors[]
+# ════════════════════════════════════════════════════════════
 @app.route('/api/predict', methods=['POST'])
 def predict():
-
     try:
-        data = request.get_json()
-        city = data.get("city")
+        body = request.get_json(silent=True)
+        if not body:
+            return jsonify({"success": False, "message": "Request body must be JSON"}), 400
 
-        if not city:
-            return jsonify({
-                "success": False,
-                "message": "City required"
-            }), 400
+        city_raw = body.get("city", "").strip()
+        if not city_raw:
+            return jsonify({"success": False, "message": "Field 'city' is required"}), 400
 
-        lat, lon = get_coordinates(city)
+        city_key = city_raw.lower()
+        lat, lon = get_coordinates(city_key)
 
         if lat is None:
+            supported = ", ".join(c.title() for c in CITY_COORDINATES)
             return jsonify({
                 "success": False,
-                "message": "City not supported"
+                "message": f"City '{city_raw}' is not supported. Supported: {supported}"
             }), 404
 
-        # ML prediction only
-        result = predict_disasters(city, lat, lon, use_ml=True)
+        result = predict_disasters(city_raw.title(), lat, lon, use_ml=True)
 
-        if result is None or result["method"] != "Machine Learning":
+        if result is None or result.get("method") != "Machine Learning":
             return jsonify({
                 "success": False,
-                "message": "ML prediction unavailable"
+                "message": "ML prediction unavailable for this city right now"
             }), 500
 
-        return jsonify({
-            "success": True,
-            "data": result
-        })
+        # Attach risk_level to each prediction — frontend reads this field
+        attach_risk_levels(result["predictions"])
+
+        # Ensure all fields the frontend reads are present
+        # (flood_predictor may not return all of these — we guarantee them here)
+        result.setdefault("location", city_raw.title())
+        result.setdefault("date", datetime.now().strftime("%d %b %Y, %H:%M"))
+        result.setdefault("method", "Machine Learning")
+        result.setdefault("key_factors", [])
+
+        # Guarantee current_conditions structure with all three sub-fields
+        cc = result.setdefault("current_conditions", {})
+        cc.setdefault("temp_c", None)
+        cc.setdefault("humidity", None)
+        cc.setdefault("rain_mm", None)
+
+        return jsonify({"success": True, "data": result})
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
-# ================= ALL CITY PREDICTIONS =================
-
+# ════════════════════════════════════════════════════════════
+#  POST /api/predict-all-cities  — bulk map prediction
+#
+#  Frontend reads:
+#    result.success
+#    result.message                          (on failure)
+#    result.cities[].city
+#    result.cities[].lat
+#    result.cities[].lon
+#    result.cities[].max_risk
+#    result.cities[].risk_level
+#    result.cities[].disaster_type
+#    result.cities[].predictions
+#
+#  Map marker colors: ≥60 → red, ≥30 → amber, <30 → green
+#  City cards shown for: max_risk ≥ 30
+# ════════════════════════════════════════════════════════════
 @app.route('/api/predict-all-cities', methods=['POST'])
 def predict_all():
-
     results = []
 
-    for city, coords in CITY_COORDINATES.items():
+    for city_key, coords in CITY_COORDINATES.items():
+        try:
+            city_title = city_key.title()
+            prediction = predict_disasters(
+                city_title,
+                coords["lat"],
+                coords["lon"],
+                use_ml=True
+            )
 
-        prediction = predict_disasters(
-            city.title(),
-            coords["lat"],
-            coords["lon"],
-            use_ml=True
-        )
+            if prediction is None or prediction.get("method") != "Machine Learning":
+                continue  # skip silently — don't crash the whole map
 
-        # Skip if ML failed
-        if prediction is None or prediction["method"] != "Machine Learning":
-            continue
+            predictions = prediction["predictions"]
+            attach_risk_levels(predictions)
 
-        probs = {
-            k: v["probability_percent"]
-            for k, v in prediction["predictions"].items()
-        }
+            # Probability per disaster type
+            probs = {k: v["probability_percent"] for k, v in predictions.items()}
+            if not probs:
+                continue
 
-        max_risk = max(probs.values())
-        main_type = max(probs, key=probs.get)
+            max_risk    = max(probs.values())
+            main_type   = max(probs, key=probs.get)
 
-        results.append({
-            "city": city.title(),
-            "lat": coords["lat"],
-            "lon": coords["lon"],
-            "max_risk": max_risk,
-            "disaster_type": main_type,
-            "predictions": prediction["predictions"]
-        })
+            results.append({
+                "city":          city_title,
+                "lat":           coords["lat"],
+                "lon":           coords["lon"],
+                "max_risk":      round(max_risk, 2),
+                "risk_level":    risk_label(max_risk),   # UI reads c.risk_level
+                "disaster_type": main_type,              # UI reads c.disaster_type
+                "predictions":   predictions,            # UI reads c.predictions
+            })
 
-    if len(results) == 0:
+        except Exception:
+            continue  # one city failing should never break the rest
+
+    if not results:
         return jsonify({
             "success": False,
-            "message": "ML prediction failed for all cities"
+            "message": "ML prediction failed for all cities. Are the models trained?"
         }), 500
 
-    return jsonify({
-        "success": True,
-        "cities": results
-    })
+    return jsonify({"success": True, "cities": results})
 
 
-# ================= SOS =================
+# ════════════════════════════════════════════════════════════
+#  POST /api/live-alert  — real-time rainfall alert + ML
+#
+#  Frontend reads (all at top-level of response):
+#    d.success
+#    d.message
+#    d.city          → shown in heading
+#    d.temperature   → 🌡️ display
+#    d.humidity      → 💧 display
+#    d.rain_mm       → 🌧️ display
+#    d.level         → "RED" | "ORANGE" | "GREEN"
+#                      used as CSS class: class="ab RED"
+#    d.message       → alert text
+#    d.lat / d.lon   → Leaflet map setView + marker
+#    d.ml_predictions[k].probability_percent
+#    d.ml_predictions[k].risk_level
+#
+#  Alert thresholds (match what the UI describes):
+#    rain > 150 mm → RED
+#    rain > 50 mm  → ORANGE
+#    else          → GREEN
+# ════════════════════════════════════════════════════════════
+@app.route('/api/live-alert', methods=['POST'])
+def live_alert():
+    try:
+        body = request.get_json(silent=True)
+        if not body:
+            return jsonify({"success": False, "message": "Request body must be JSON"}), 400
 
+        city = body.get("city", "").strip()
+        if not city:
+            return jsonify({"success": False, "message": "Field 'city' is required"}), 400
+
+        if not OPENWEATHER_API_KEY:
+            return jsonify({
+                "success": False,
+                "message": "OPENWEATHER_API_KEY not set. Run: export OPENWEATHER_API_KEY=your_key"
+            }), 500
+
+        # Fetch live weather from OpenWeatherMap
+        ow_url = (
+            f"https://api.openweathermap.org/data/2.5/weather"
+            f"?q={city}&appid={OPENWEATHER_API_KEY}&units=metric"
+        )
+        ow_res = requests.get(ow_url, timeout=6)
+
+        if ow_res.status_code == 404:
+            return jsonify({"success": False, "message": f"City '{city}' not recognised by weather API"}), 404
+        if ow_res.status_code != 200:
+            return jsonify({"success": False, "message": f"Weather API error (HTTP {ow_res.status_code})"}), 502
+
+        weather  = ow_res.json()
+        lat      = weather["coord"]["lat"]
+        lon      = weather["coord"]["lon"]
+        temp_c   = round(weather["main"]["temp"], 1)
+        humidity = weather["main"]["humidity"]
+        rain_mm  = weather.get("rain", {}).get("1h", 0)   # mm in last hour
+
+        # Alert level — values used as CSS class names in the UI: "RED" | "ORANGE" | "GREEN"
+        if rain_mm > 150:
+            level   = "RED"
+            message = "Heavy rainfall detected! High flood risk — evacuate low-lying areas."
+        elif rain_mm > 50:
+            level   = "ORANGE"
+            message = "Moderate rainfall. Stay cautious and avoid flood-prone areas."
+        else:
+            level   = "GREEN"
+            message = "Weather conditions are currently normal."
+
+        # Run ML prediction for this lat/lon
+        # Frontend loops over ml_predictions[k] reading .probability_percent and .risk_level
+        ml_result = predict_disasters(city, lat, lon, use_ml=True)
+        ml_predictions = {}
+        if ml_result and ml_result.get("predictions"):
+            ml_predictions = ml_result["predictions"]
+            attach_risk_levels(ml_predictions)
+
+        return jsonify({
+            "success":        True,
+            "city":           city.title(),          # shown as heading in UI
+            "lat":            lat,                   # Leaflet map
+            "lon":            lon,                   # Leaflet map
+            "temperature":    temp_c,                # 🌡️ d.temperature
+            "humidity":       humidity,              # 💧 d.humidity
+            "rain_mm":        rain_mm,               # 🌧️ d.rain_mm
+            "level":          level,                 # CSS class ab.RED / ab.ORANGE / ab.GREEN
+            "message":        message,               # alert text
+            "ml_predictions": ml_predictions,        # disaster prediction cards
+        })
+
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "message": "Weather API timed out. Try again."}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({"success": False, "message": "Cannot reach weather API. Check your internet."}), 502
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ════════════════════════════════════════════════════════════
+#  POST /sos  — Telegram emergency alert
+#
+#  Frontend sends: { latitude, longitude, name }
+#  Frontend reads: { status: "sent" | "error", message? }
+# ════════════════════════════════════════════════════════════
 @app.route('/sos', methods=['POST'])
 def sos():
-
-    data = request.json
+    body = request.get_json(silent=True)
+    if not body:
+        return jsonify({"status": "error", "message": "Request body must be JSON"}), 400
 
     try:
-        lat = float(data.get("latitude"))
-        lon = float(data.get("longitude"))
-        name = data.get("name", "Unknown")
+        lat_raw = body.get("latitude")
+        lon_raw = body.get("longitude")
 
-        message = f"""
-🚨 SOS ALERT 🚨
+        if lat_raw is None or lon_raw is None:
+            return jsonify({"status": "error", "message": "latitude and longitude are required"}), 400
 
-Name: {name}
-Location: {lat}, {lon}
-Time: {datetime.now()}
-"""
+        lat  = float(lat_raw)
+        lon  = float(lon_raw)
+        name = str(body.get("name", "Unknown")).strip()[:60]   # cap length
 
-        requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": message}
+        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            return jsonify({"status": "error", "message": "Coordinates out of valid range"}), 400
+
+        if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "Telegram not configured. Set TELEGRAM_BOT_TOKEN and "
+                    "TELEGRAM_CHAT_ID environment variables."
+                )
+            }), 500
+
+        maps_link = f"https://maps.google.com/?q={lat},{lon}"
+        timestamp = datetime.now().strftime("%d %b %Y %H:%M:%S")
+
+        tg_message = (
+            f"🚨 SOS ALERT — DRISHTI SYSTEM 🚨\n\n"
+            f"👤 Name:      {name}\n"
+            f"📍 Location:  {lat:.6f}, {lon:.6f}\n"
+            f"🗺  Maps:     {maps_link}\n"
+            f"⏰ Time:      {timestamp}\n\n"
+            f"⚠️  Please dispatch emergency services immediately."
         )
 
-        return jsonify({"status": "sent"})
+        tg_response = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": tg_message},
+            timeout=6
+        )
 
+        if tg_response.status_code == 200:
+            return jsonify({"status": "sent"})
+
+        # Telegram returned an error — surface it
+        tg_error = tg_response.json().get("description", "Unknown Telegram error")
+        return jsonify({"status": "error", "message": f"Telegram: {tg_error}"}), 502
+
+    except ValueError:
+        return jsonify({"status": "error", "message": "latitude and longitude must be valid numbers"}), 400
+    except requests.exceptions.Timeout:
+        return jsonify({"status": "error", "message": "Telegram API timed out"}), 504
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# ================= START SERVER =================
-
+# ════════════════════════════════════════════════════════════
+#  Start server  — ALWAYS the last block in the file
+# ════════════════════════════════════════════════════════════
 if __name__ == "__main__":
-
-    print("\n==============================")
-    print("🌐 Server starting")
-    print("⚙ Mode: ML ONLY")
-    print("==============================\n")
+    print("\n" + "═" * 44)
+    print("  🛰️  DRISHTI — Disaster Intelligence System")
+    print("═" * 44)
+    print(f"  🌐  URL      : http://localhost:5000")
+    print(f"  ⚙️   Mode     : ML ONLY (no rule-based fallback)")
+    print(f"  🏙️   Cities   : {len(CITY_COORDINATES)}")
+    print(f"  🔑  OWM key  : {'SET ✅' if OPENWEATHER_API_KEY else 'NOT SET ⚠️'}")
+    print(f"  📱  Telegram : {'SET ✅' if TELEGRAM_BOT_TOKEN else 'NOT SET ⚠️'}")
+    print("═" * 44 + "\n")
 
     app.run(host="0.0.0.0", port=5000, debug=True)
