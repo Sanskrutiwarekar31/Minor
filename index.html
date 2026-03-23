@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Disaster Management & Prediction System</title>
@@ -21,8 +23,9 @@
   --text: #1e293b;
   --text-muted: #64748b;
   --border: #e2e8f0;
-  --shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px 2px rgba(0,0,0,0.05);
+
+  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
   --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
 }
 
@@ -683,6 +686,8 @@ button.primary:disabled {
   font-size: 14px;
 }
 
+
+
 /* ================= LOADING SPINNER ================= */
 .spinner {
   display: inline-block;
@@ -813,6 +818,26 @@ button.primary:disabled {
     <div id="weatherResult" class="weather-grid"></div>
   </div>
 </section>
+
+
+<!-- ================= INDIA MAP PAGE ================= -->
+<section id="india-map" class="page">
+  <div class="panel">
+    <h2>India Disaster Risk Map</h2>
+
+    <div class="info-box">
+      <strong>🗺️ Multi-City Disaster Monitoring:</strong>
+      This map shows real-time disaster risk levels across major Indian cities.
+    </div>
+
+    <button class="primary" onclick="loadCityAlerts()">
+      🌍 Load Disaster Map
+    </button>
+
+    <div id="map" style="height: 500px; margin-top: 20px; border-radius: 12px;"></div>
+  </div>
+</section>
+
 
 <!-- ================= PREDICTION PAGE ================= -->
 <section id="prediction" class="page">
@@ -1317,6 +1342,43 @@ document.addEventListener('keydown', (e) => {
   if(!localStorage.getItem(STORAGE_FEEDS_KEY))
     saveStoredFeeds(DEFAULT_FEEDS.slice());
 })();
+</script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+function loadCityAlerts() {
+
+  var map = L.map('map').setView([20.5937, 78.9629], 5); // India center
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Sample city data (you can later connect API)
+  const cities = [
+    {name: "Mumbai", lat: 19.0760, lon: 72.8777, risk: "RED"},
+    {name: "Pune", lat: 18.5204, lon: 73.8567, risk: "ORANGE"},
+    {name: "Delhi", lat: 28.7041, lon: 77.1025, risk: "GREEN"},
+    {name: "Kolkata", lat: 22.5726, lon: 88.3639, risk: "RED"},
+    {name: "Chennai", lat: 13.0827, lon: 80.2707, risk: "ORANGE"}
+  ];
+
+  cities.forEach(city => {
+
+    let color;
+    if (city.risk === "RED") color = "red";
+    else if (city.risk === "ORANGE") color = "orange";
+    else color = "green";
+
+    L.circleMarker([city.lat, city.lon], {
+      color: color,
+      radius: 10
+    })
+    .addTo(map)
+    .bindPopup(`<b>${city.name}</b><br>Alert: ${city.risk}`);
+  });
+
+}
 </script>
 
 </body>

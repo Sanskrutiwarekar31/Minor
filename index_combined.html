@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DRISHTI — Disaster Intelligence System</title>
@@ -617,9 +618,123 @@ body::after {
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
+<<<<<<< HEAD
 @media(max-width:600px) {
   .stats-row { grid-template-columns: 1fr 1fr; }
   .pg, .wg { grid-template-columns: 1fr; }
+=======
+.info-box {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-left: 4px solid var(--primary);
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  line-height: 1.8;
+}
+
+.key-factors {
+  margin-top: 24px;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.key-factors ul {
+  margin: 16px 0;
+  padding-left: 28px;
+}
+
+.key-factors li {
+  margin: 10px 0;
+  line-height: 1.7;
+}
+
+.tag {
+  display: inline-block;
+  background: var(--bg-secondary);
+  padding: 6px 14px;
+  border-radius: 20px;
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.feeds-input {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.small {
+  padding: 10px 18px;
+  font-size: 14px;
+}
+
+
+
+
+
+/* ================= LOADING SPINNER ================= */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255,255,255,.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .header-text h1 {
+    font-size: 24px;
+  }
+  
+  .header-icon {
+    font-size: 48px;
+  }
+  
+  nav {
+    top: 140px;
+  }
+  
+  nav button {
+    padding: 16px 20px;
+    font-size: 14px;
+  }
+  
+  .prediction-grid,
+  .weather-grid,
+  #news-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .panel {
+    padding: 24px;
+  }
+  
+  .disaster-probability {
+    font-size: 48px;
+  }
+}
+
+/* Pulse animation for SOS button */
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.7); }
+  50% { box-shadow: 0 0 0 15px rgba(220,38,38,0); }
+>>>>>>> e547194a456e7f9deaef47e4810a0b51b130bf3d
 }
 </style>
 </head>
@@ -936,6 +1051,7 @@ function SP(id,el){
 }
 function toggleSB(){document.getElementById('sidebar').classList.toggle('open');}
 
+<<<<<<< HEAD
 /* ══ CONFIG ══ */
 const API=window.location.origin;
 const WK='14c27bb50b0044d6b37175716263101';
@@ -1122,6 +1238,46 @@ async function loadAllNews(){
 
 /* ══ INIT ══ */
 (function(){rFC();if(!localStorage.getItem(FK))sF(DF.slice());})();
+=======
+
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+function loadCityAlerts() {
+
+  var map = L.map('map').setView([20.5937, 78.9629], 5); // India center
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Sample city data (you can later connect API)
+  const cities = [
+    {name: "Mumbai", lat: 19.0760, lon: 72.8777, risk: "RED"},
+    {name: "Pune", lat: 18.5204, lon: 73.8567, risk: "ORANGE"},
+    {name: "Delhi", lat: 28.7041, lon: 77.1025, risk: "GREEN"},
+    {name: "Kolkata", lat: 22.5726, lon: 88.3639, risk: "RED"},
+    {name: "Chennai", lat: 13.0827, lon: 80.2707, risk: "ORANGE"}
+  ];
+
+  cities.forEach(city => {
+
+    let color;
+    if (city.risk === "RED") color = "red";
+    else if (city.risk === "ORANGE") color = "orange";
+    else color = "green";
+
+    L.circleMarker([city.lat, city.lon], {
+      color: color,
+      radius: 10
+    })
+    .addTo(map)
+    .bindPopup(`<b>${city.name}</b><br>Alert: ${city.risk}`);
+  });
+
+}
+>>>>>>> e547194a456e7f9deaef47e4810a0b51b130bf3d
 </script>
 </body>
 </html>
