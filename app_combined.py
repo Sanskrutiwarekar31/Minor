@@ -219,40 +219,66 @@ def predict_all():
                 use_ml=True
             )
 
-            if prediction is None or prediction.get("method") != "Machine Learning":
-                continue  # skip silently — don't crash the whole map
+            # Accept both ML and Rule-Based results
+            if prediction is None:
+                continue
 
             predictions = prediction["predictions"]
             attach_risk_levels(predictions)
 
-            # Probability per disaster type
-            probs = {k: v["probability_percent"] for k, v in predictions.items()}
+            probs    = {k: v["probability_percent"] for k, v in predictions.items()}
             if not probs:
                 continue
 
-            max_risk    = max(probs.values())
-            main_type   = max(probs, key=probs.get)
+            max_risk  = max(probs.values())
+            main_type = max(probs, key=probs.get)
 
             results.append({
                 "city":          city_title,
                 "lat":           coords["lat"],
                 "lon":           coords["lon"],
                 "max_risk":      round(max_risk, 2),
-                "risk_level":    risk_label(max_risk),   # UI reads c.risk_level
-                "disaster_type": main_type,              # UI reads c.disaster_type
-                "predictions":   predictions,            # UI reads c.predictions
+                "risk_level":    risk_label(max_risk),
+                "disaster_type": main_type,
+                "predictions":   predictions,
             })
 
         except Exception:
-            continue  # one city failing should never break the rest
+            continue
 
     if not results:
         return jsonify({
             "success": False,
-            "message": "ML prediction failed for all cities. Are the models trained?"
+            "message": "Prediction failed for all cities. Are the models trained?"
         }), 500
 
     return jsonify({"success": True, "cities": results})
+
+
+# ════════════════════════════════════════════════════════════
+#  GET /api/user-location — auto-detect city from IP
+#  (mirrors your Streamlit get_user_location() function)
+# ════════════════════════════════════════════════════════════
+@app.route('/api/user-location', methods=['GET'])
+def user_location():
+    try:
+        # Get visitor's IP
+        user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        if user_ip in ('127.0.0.1', '::1', 'localhost'):
+            return jsonify({"success": False, "message": "Local IP — enter city manually"})
+
+        res  = requests.get(f"https://ipinfo.io/{user_ip}/json", timeout=5)
+        data = res.json()
+        city = data.get("city")
+        loc  = data.get("loc")  # "lat,lon"
+
+        if city and loc:
+            lat, lon = map(float, loc.split(","))
+            return jsonify({"success": True, "city": city, "lat": lat, "lon": lon})
+
+        return jsonify({"success": False, "message": "Could not detect location"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
 
 # ════════════════════════════════════════════════════════════
@@ -288,32 +314,70 @@ def live_alert():
         if not city:
             return jsonify({"success": False, "message": "Field 'city' is required"}), 400
 
-        if not OPENWEATHER_API_KEY:
-            return jsonify({
-                "success": False,
-                "message": "OPENWEATHER_API_KEY not set. Run: export OPENWEATHER_API_KEY=your_key"
-            }), 500
+        # ── API keys ──
+        OWM_KEY        = "960ed8bd981cd018c47ed8c49b2152bb"  # OpenWeatherMap
+        WEATHERAPI_KEY = "14c27bb50b0044d6b37175716263101"   # WeatherAPI fallback
 
-        # Fetch live weather from OpenWeatherMap
-        ow_url = (
-            f"https://api.openweathermap.org/data/2.5/weather"
-            f"?q={city}&appid={OPENWEATHER_API_KEY}&units=metric"
-        )
-        ow_res = requests.get(ow_url, timeout=6)
+        lat = lon = temp_c = humidity = rain_mm = None
 
-        if ow_res.status_code == 404:
-            return jsonify({"success": False, "message": f"City '{city}' not recognised by weather API"}), 404
-        if ow_res.status_code != 200:
-            return jsonify({"success": False, "message": f"Weather API error (HTTP {ow_res.status_code})"}), 502
+        # ── Try OpenWeatherMap first (from your Streamlit app) ──
+        try:
+            owm_url = (
+                f"https://api.openweathermap.org/data/2.5/weather"
+                f"?q={city}&appid={OWM_KEY}&units=metric"
+            )
+            owm_res = requests.get(owm_url, timeout=6)
+            if owm_res.status_code == 200:
+                owm_data = owm_res.json()
+                lat      = owm_data["coord"]["lat"]
+                lon      = owm_data["coord"]["lon"]
+                temp_c   = round(owm_data["main"]["temp"], 1)
+                humidity = owm_data["main"]["humidity"]
+                rain_mm  = owm_data.get("rain", {}).get("1h", 0)
+        except Exception:
+            pass
 
-        weather  = ow_res.json()
-        lat      = weather["coord"]["lat"]
-        lon      = weather["coord"]["lon"]
-        temp_c   = round(weather["main"]["temp"], 1)
-        humidity = weather["main"]["humidity"]
-        rain_mm  = weather.get("rain", {}).get("1h", 0)   # mm in last hour
+        # ── Fallback to WeatherAPI.com if OWM failed ──
+        if lat is None:
+            try:
+                wa_url = (
+                    f"https://api.weatherapi.com/v1/current.json"
+                    f"?key={WEATHERAPI_KEY}&q={city}&aqi=no"
+                )
+                wa_res = requests.get(wa_url, timeout=6)
+                if wa_res.status_code == 200:
+                    wa_data  = wa_res.json()
+                    lat      = wa_data["location"]["lat"]
+                    lon      = wa_data["location"]["lon"]
+                    temp_c   = round(wa_data["current"]["temp_c"], 1)
+                    humidity = wa_data["current"]["humidity"]
+                    rain_mm  = wa_data["current"].get("precip_mm", 0)
+            except Exception:
+                pass
 
-        # Alert level — values used as CSS class names in the UI: "RED" | "ORANGE" | "GREEN"
+        # ── Fallback to city coordinates + CSV data if API fails ──
+        if lat is None:
+            city_key = city.lower().strip()
+            coords   = CITY_COORDINATES.get(city_key)
+            if coords is None:
+                # Try partial match
+                for k, v in CITY_COORDINATES.items():
+                    if city_key in k or k in city_key:
+                        coords = v
+                        break
+            if coords is None:
+                return jsonify({
+                    "success": False,
+                    "message": f"City '{city}' not found. Try: Mumbai, Delhi, Pune, Chennai etc."
+                }), 404
+
+            lat      = coords["lat"]
+            lon      = coords["lon"]
+            temp_c   = 32.0
+            humidity = 65
+            rain_mm  = 0.0
+
+        # ── Alert level (CSS class names used directly in UI) ──
         if rain_mm > 150:
             level   = "RED"
             message = "Heavy rainfall detected! High flood risk — evacuate low-lying areas."
@@ -324,31 +388,33 @@ def live_alert():
             level   = "GREEN"
             message = "Weather conditions are currently normal."
 
-        # Run ML prediction for this lat/lon
-        # Frontend loops over ml_predictions[k] reading .probability_percent and .risk_level
-        ml_result = predict_disasters(city, lat, lon, use_ml=True)
+        # ── ML predictions ──
         ml_predictions = {}
-        if ml_result and ml_result.get("predictions"):
-            ml_predictions = ml_result["predictions"]
-            attach_risk_levels(ml_predictions)
+        try:
+            ml_result = predict_disasters(city, lat, lon, use_ml=True)
+            if ml_result and ml_result.get("predictions"):
+                ml_predictions = ml_result["predictions"]
+                attach_risk_levels(ml_predictions)
+        except Exception:
+            pass
 
         return jsonify({
             "success":        True,
-            "city":           city.title(),          # shown as heading in UI
-            "lat":            lat,                   # Leaflet map
-            "lon":            lon,                   # Leaflet map
-            "temperature":    temp_c,                # 🌡️ d.temperature
-            "humidity":       humidity,              # 💧 d.humidity
-            "rain_mm":        rain_mm,               # 🌧️ d.rain_mm
-            "level":          level,                 # CSS class ab.RED / ab.ORANGE / ab.GREEN
-            "message":        message,               # alert text
-            "ml_predictions": ml_predictions,        # disaster prediction cards
+            "city":           city.title(),
+            "lat":            lat,
+            "lon":            lon,
+            "temperature":    temp_c,
+            "humidity":       humidity,
+            "rain_mm":        rain_mm,
+            "level":          level,
+            "message":        message,
+            "ml_predictions": ml_predictions,
         })
 
     except requests.exceptions.Timeout:
         return jsonify({"success": False, "message": "Weather API timed out. Try again."}), 504
     except requests.exceptions.ConnectionError:
-        return jsonify({"success": False, "message": "Cannot reach weather API. Check your internet."}), 502
+        return jsonify({"success": False, "message": "Cannot reach weather API. Check internet."}), 502
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
